@@ -14,10 +14,10 @@
 #include <fstream> 
 #include <stream>
 
-// Data structure includes - Team Member 2
-#include <vector>    // For storing collections - Team Member 2
-#include <memory>    // For shared_ptr - Team Member 2
-#include <algorithm> // For algorithms like replace - Team Member 2
+// Data structure include
+#include <vector>
+#include <memory>
+#include <algorithm>
 
 
 using namespace std;
@@ -216,7 +216,7 @@ private:
 
 
 public:
-   // Constructor - Team Member 2
+   // Constructor
    LockBox(double amt, time_t uTimestamp, const string& username)
        : amount(amt), unlockTimestamp(uTimestamp), isActive(true), ownerUsername(username) {
        id = nextId++;
@@ -225,7 +225,7 @@ public:
    }
 
 
-   // Constructor for loading from file - Team Member 2
+   // Constructor for loading from file
    LockBox(int boxId, double amt, time_t uTimestamp, bool active,
            time_t rTimestamp, const string& timestamp, const string& username)
        : id(boxId), amount(amt), unlockTimestamp(uTimestamp), isActive(active),
@@ -236,7 +236,7 @@ public:
    }
 
 
-   // Accessor methods - Team Member 2
+   // Accessor methods
    int getId() const { return id; }
    double getAmount() const { return amount; }
    time_t getUnlockTimestamp() const { return unlockTimestamp; }
@@ -246,14 +246,14 @@ public:
    string getOwnerUsername() const { return ownerUsername; }
 
 
-   // Release the lock box - Team Member 2
+   // Release the lock box
    void release() {
        isActive = false;
        releaseTimestamp = time(0);
    }
 
 
-   // Calculate seconds remaining until unlock - Team Member 2
+   // Calculate seconds remaining until unlock
    int secondsRemaining() const {
        if (!isActive) return 0;
        time_t now = time(0);
@@ -261,7 +261,7 @@ public:
    }
 
 
-   // Check if lock box should be released - Team Member 2
+   // Check if lock box should be released
    bool shouldRelease() const {
        if (!isActive) return false;
        time_t now = time(0);
@@ -269,7 +269,7 @@ public:
    }
 
 
-   // Save to file stream - Team Member 2
+   // Save to file stream
    void saveToFile(ofstream& file) const {
        file << id << "|"
            << amount << "|"
@@ -281,7 +281,7 @@ public:
    }
 
 
-   // Static method to load from file stream - Team Member 2
+   // Static method to load from file stream
    static shared_ptr<LockBox> loadFromFile(ifstream& file) {
        string line;
        if (getline(file, line)) {
@@ -313,10 +313,10 @@ public:
 };
 
 
-int LockBox::nextId = 1; // Static member initialization - Team Member 2
+int LockBox::nextId = 1; // Static member initialization
 
 
-// ReleaseEvent class - Team Member 2
+// ReleaseEvent class
 class ReleaseEvent {
 private:
    int lockBoxId;
@@ -327,19 +327,19 @@ private:
 
 
 public:
-   // Constructor - Team Member 2
+   // Constructor
    ReleaseEvent(int lbId, time_t rTimestamp, double amount, const string& uname)
        : lockBoxId(lbId), releaseTimestamp(rTimestamp), releasedAmount(amount), username(uname) {
        timestamp = getCurrentDateTime();
    }
 
 
-   // Constructor for loading from file - Team Member 2
+   // Constructor for loading from file
    ReleaseEvent(int lbId, time_t rTimestamp, double amount, const string& uname, const string& ts)
        : lockBoxId(lbId), releaseTimestamp(rTimestamp), releasedAmount(amount), username(uname), timestamp(ts) {}
 
 
-   // Accessor methods - Team Member 2
+   // Accessor methods
    int getLockBoxId() const { return lockBoxId; }
    time_t getReleaseTimestamp() const { return releaseTimestamp; }
    double getReleasedAmount() const { return releasedAmount; }
@@ -347,7 +347,7 @@ public:
    string getTimestamp() const { return timestamp; }
 
 
-   // Save to file stream - Team Member 2
+   // Save to file stream
    void saveToFile(ofstream& file) const {
        file << lockBoxId << "|"
            << releaseTimestamp << "|"
@@ -357,7 +357,7 @@ public:
    }
 
 
-   // Static method to load from file stream - Team Member 2
+   // Static method to load from file stream
    static shared_ptr<ReleaseEvent> loadFromFile(ifstream& file) {
        string line;
        if (getline(file, line)) {
