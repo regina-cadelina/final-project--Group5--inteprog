@@ -12,7 +12,13 @@
 
 // File handling includes
 #include <fstream> 
-#include <sstream>
+#include <stream>
+
+// Data structure includes - Team Member 2
+#include <vector>    // For storing collections - Team Member 2
+#include <memory>    // For shared_ptr - Team Member 2
+#include <algorithm> // For algorithms like replace - Team Member 2
+
 
 using namespace std;
 
@@ -192,4 +198,190 @@ private:
             default: return "UNKNOWN";
         }
     }
+};
+
+
+
+// LockBox class - Team Member 2
+class LockBox {
+private:
+   static int nextId;
+   int id;
+   double amount;
+   time_t unlockTimestamp;
+   bool isActive;
+   time_t releaseTimestamp;
+   string creationTimestamp;
+   string ownerUsername;
+
+
+public:
+   // Constructor - Team Member 2
+   LockBox(double amt, time_t uTimestamp, const string& username)
+       : amount(amt), unlockTimestamp(uTimestamp), isActive(true), ownerUsername(username) {
+       id = nextId++;
+       releaseTimestamp = 0;
+       creationTimestamp = getCurrentDateTime();
+   }
+
+
+   // Constructor for loading from file - Team Member 2
+   LockBox(int boxId, double amt, time_t uTimestamp, bool active,
+           time_t rTimestamp, const string& timestamp, const string& username)
+       : id(boxId), amount(amt), unlockTimestamp(uTimestamp), isActive(active),
+       releaseTimestamp(rTimestamp), creationTimestamp(timestamp), ownerUsername(username) {
+       if (boxId >= nextId) {
+           nextId = boxId + 1;
+       }
+   }
+
+
+   // Accessor methods - Team Member 2
+   int getId() const { return id; }
+   double getAmount() const { return amount; }
+   time_t getUnlockTimestamp() const { return unlockTimestamp; }
+   bool getIsActive() const { return isActive; }
+   time_t getReleaseTimestamp() const { return releaseTimestamp; }
+   string getCreationTimestamp() const { return creationTimestamp; }
+   string getOwnerUsername() const { return ownerUsername; }
+
+
+   // Release the lock box - Team Member 2
+   void release() {
+       isActive = false;
+       releaseTimestamp = time(0);
+   }
+
+
+   // Calculate seconds remaining until unlock - Team Member 2
+   int secondsRemaining() const {
+       if (!isActive) return 0;
+       time_t now = time(0);
+       return static_cast<int>(unlockTimestamp - now);
+   }
+
+
+   // Check if lock box should be released - Team Member 2
+   bool shouldRelease() const {
+       if (!isActive) return false;
+       time_t now = time(0);
+       return now >= unlockTimestamp;
+   }
+
+
+   // Save to file stream - Team Member 2
+   void saveToFile(ofstream& file) const {
+       file << id << "|"
+           << amount << "|"
+           << unlockTimestamp << "|"
+           << (isActive ? 1 : 0) << "|"
+           << releaseTimestamp << "|"
+           << creationTimestamp << "|"
+           << ownerUsername << endl;
+   }
+
+
+   // Static method to load from file stream - Team Member 2
+   static shared_ptr<LockBox> loadFromFile(ifstream& file) {
+       string line;
+       if (getline(file, line)) {
+           istringstream iss(line);
+           string token;
+           vector<string> tokens;
+
+
+           while (getline(iss, token, '|')) {
+               tokens.push_back(token);
+           }
+
+
+           if (tokens.size() >= 7) {
+               int id = stoi(tokens[0]);
+               double amount = stod(tokens[1]);
+               time_t unlockTimestamp = static_cast<time_t>(stoll(tokens[2]));
+               bool active = stoi(tokens[3]) == 1;
+               time_t releaseTimestamp = static_cast<time_t>(stoll(tokens[4]));
+               string timestamp = tokens[5];
+               string username = tokens[6];
+
+
+               return make_shared<LockBox>(id, amount, unlockTimestamp, active, releaseTimestamp, timestamp, username);
+           }
+       }
+       return nullptr;
+   }
+};
+
+
+int LockBox::nextId = 1; // Static member initialization - Team Member 2
+
+
+// ReleaseEvent class - Team Member 2
+class ReleaseEvent {
+private:
+   int lockBoxId;
+   time_t releaseTimestamp;
+   double releasedAmount;
+   string username;
+   string timestamp;  // Exact timestamp when the release occurred
+
+
+public:
+   // Constructor - Team Member 2
+   ReleaseEvent(int lbId, time_t rTimestamp, double amount, const string& uname)
+       : lockBoxId(lbId), releaseTimestamp(rTimestamp), releasedAmount(amount), username(uname) {
+       timestamp = getCurrentDateTime();
+   }
+
+
+   // Constructor for loading from file - Team Member 2
+   ReleaseEvent(int lbId, time_t rTimestamp, double amount, const string& uname, const string& ts)
+       : lockBoxId(lbId), releaseTimestamp(rTimestamp), releasedAmount(amount), username(uname), timestamp(ts) {}
+
+
+   // Accessor methods - Team Member 2
+   int getLockBoxId() const { return lockBoxId; }
+   time_t getReleaseTimestamp() const { return releaseTimestamp; }
+   double getReleasedAmount() const { return releasedAmount; }
+   string getUsername() const { return username; }
+   string getTimestamp() const { return timestamp; }
+
+
+   // Save to file stream - Team Member 2
+   void saveToFile(ofstream& file) const {
+       file << lockBoxId << "|"
+           << releaseTimestamp << "|"
+           << releasedAmount << "|"
+           << username << "|"
+           << timestamp << endl;
+   }
+
+
+   // Static method to load from file stream - Team Member 2
+   static shared_ptr<ReleaseEvent> loadFromFile(ifstream& file) {
+       string line;
+       if (getline(file, line)) {
+           istringstream iss(line);
+           string token;
+           vector<string> tokens;
+
+
+           while (getline(iss, token, '|')) {
+               tokens.push_back(token);
+           }
+
+
+           if (tokens.size() >= 5) {
+               int id = stoi(tokens[0]);
+               time_t rTimestamp = static_cast<time_t>(stoll(tokens[1]));
+               double amount = stod(tokens[2]);
+               string uname = tokens[3];
+               string ts = tokens[4];
+
+
+               return make_shared<ReleaseEvent>(id, rTimestamp, amount, uname, ts);
+           }
+       }
+       return nullptr;
+   }
 };
