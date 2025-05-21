@@ -193,3 +193,429 @@ private:
         }
     }
 };
+
+// User class 
+class User : public Person {
+private:
+   double balance;
+   vector<shared_ptr<LockBox>> lockBoxes;
+   bool active;
+
+public:
+// Constructor 
+User(const string& uname, const string& pass, double initialBalance = 1000.0)
+       : Person(uname, pass), balance(initialBalance), active(true) {}
+
+// Constructor for loading from file
+  User(const string& uname, const string& pass, double initialBalance,
+       bool isActive, const string& regDate)
+       : Person(uname, pass, regDate), balance(initialBalance), active(isActive) {}
+
+// Accessor methods 
+double getBalance() const { return balance; }
+   bool isActive() const { return active; }
+
+// Set user active status 
+  void setActive(bool status) {
+       active = status;
+       string details = "Status changed to " + string(active ? "Active" : "Inactive");
+       TransactionLogger::logTransaction(
+           TransactionLogger::USER_STATUS_CHANGE,
+           username,
+           details
+       );
+   }
+// Create a new look box
+bool createLockBox(double amount, time_t unlockTimestamp) {
+       if (amount <= 0 || amount > balance) {
+           cout << "Invalid amount or insufficient balance.\n";
+           return false;
+       }
+
+
+       balance -= amount;
+       auto newBox = make_shared<LockBox>(amount, unlockTimestamp, username);
+       lockBoxes.push_back(newBox);
+
+
+       stringstream details;
+       details << "Created Lock Box for " << (unlockTimestamp - time(0)) << " seconds";
+       TransactionLogger::logTransaction(
+           TransactionLogger::CREATE_LOCKBOX,
+           username,
+           details.str(),
+           amount
+       );
+
+
+       TransactionLogger::generateReceipt(
+           TransactionLogger::CREATE_LOCKBOX,
+           username,
+           details.str(),
+           amount,
+           newBox->getId()
+       );
+
+
+
+       cout << "Lock Box created successfully! Funds locked for "
+            << (unlockTimestamp - time(0)) << " seconds." << endl;
+       return true;
+   }
+
+// View user's lock boxes
+ void viewLockBoxes(bool showActive = true, bool showReleased = true) const {
+       bool found = false;
+       cout << "\n==== " << (showActive ? "ACTIVE " : "")
+           << (showActive && showReleased ? "& " : "")
+           << (showReleased ? "RELEASED " : "") << "LOCK BOXES ====\n";
+
+
+       for (const auto& box : lockBoxes) {
+           if ((showActive && box->getIsActive()) || (showReleased && !box->getIsActive())) {
+               cout << "ID: " << box->getId()
+                   << " | Amount: $" << fixed << setprecision(2) << box->getAmount()
+                   << " | Unlocks In: ";
+               if (box->getIsActive()) {
+                   int secs = box->secondsRemaining();
+                   if (secs > 0)
+                       cout << secs << " seconds";
+                   else
+                       cout << "Ready to unlock";
+               } else {
+                   time_t released = box->getReleaseTimestamp();
+                   cout << "Released at " << ctime(&released);
+               }
+               cout << endl;
+               found = true;
+           }
+       }
+
+
+       if (!found) {
+           cout << "No lock boxes to display.\n";
+       }
+   }
+
+// Check and release lock boxes that have reached their unlock time 
+ void checkAndReleaseLockBoxes() {
+       for (auto& box : lockBoxes) {
+  if (box->getIsActive() && box->shouldRelease()) {
+               box->release();
+               balance += box->getAmount();
+
+
+               auto event = make_shared<ReleaseEvent>(
+                   box->getId(),
+                   box->getReleaseTimestamp(),
+                   box->getAmount(),
+                   username
+               );
+               releaseLog.push_back(event);
+
+
+               string details = "Lock Box #" + to_string(box->getId()) + " released";
+               TransactionLogger::logTransaction(
+                   TransactionLogger::RELEASE_LOCKBOX,
+                   username,
+                   details,
+                   box->getAmount()
+               );
+
+
+               TransactionLogger::generateReceipt(
+                   TransactionLogger::RELEASE_LOCKBOX,
+                   username,
+                   details,
+                   box->getAmount(),
+                   box->getId()
+               );
+
+
+               cout << "\n*** NOTIFICATION: Lock Box #" << box->getId()
+                   << " has been unlocked! $" << fixed << setprecision(2)
+                   << box->getAmount() << " has been returned to your balance. ***\n";
+           }
+       }
+   }
+
+// Display user details 
+ void displayDetails() const override {
+       cout << "Username: " << username
+           << " | Balance: $" << fixed << setprecision(2) << balance
+           << " | Status: " << (active ? "Active" : "Inactive")
+           << " | Lock Boxes: " << lockBoxes.size()
+           << " | Registration Date: " << registrationDate << endl;
+ }
+
+// Add a lock box to the user 
+ void addLockBox(shared_ptr<LockBox> box) {
+       lockBoxes.push_back(box);
+   }
+
+// Get all lock boxes
+const vector<shared_ptr<LockBox>>& getLockBoxes() const {
+       return lockBoxes;
+   }
+
+// Save user data to file
+void saveToFile(ofstream& file) const override {
+       file << username << "|"
+           << password << "|"
+           << balance << "|"
+           << (active ? 1 : 0) << "|"
+           << registrationDate << endl;
+   }
+
+// Load user from file
+ static shared_ptr<User> loadFromFile(ifstream& file) {
+       string line;
+       if (getline(file, line)) {
+           istringstream iss(line);
+           string token;
+           vector<string> tokens;
+
+
+           while (getline(iss, token, '|')) {
+               tokens.push_back(token);
+           }
+
+
+           if (tokens.size() >= 5) {
+               string uname = tokens[0];
+               string pass = tokens[1];
+               double balance = stod(tokens[2]);
+               bool active = stoi(tokens[3]) == 1;
+               string regDate = tokens[4];
+
+
+               return make_shared<User>(uname, pass, balance, active, regDate);
+           }
+ }
+       return nullptr;
+   }
+};
+
+
+// Admin class
+class Admin : public Person {
+public:
+   // Constructor =
+   Admin(const string& uname, const string& pass)
+       : Person(uname, pass) {}
+
+
+   // Constructor for loading from file 
+   Admin(const string& uname, const string& pass, const string& regDate)
+       : Person(uname, pass, regDate) {}
+
+
+   // Display admin details 
+   void displayDetails() const override {
+       cout << "Admin Username: " << username
+           << " | Registration Date: " << registrationDate << endl;
+   }
+
+
+   // View all users 
+   void viewAllUsers() const {
+       cout << "\n==== ALL USERS ====\n";
+       if (users.empty()) {
+           cout << "No users registered.\n";
+           return;
+       }
+
+
+       for (const auto& user : users) {
+           user->displayDetails();
+       }
+   }
+
+
+   // Toggle user active status 
+   void toggleUserStatus(const string& username) {
+       for (auto& user : users) {
+           if (user->getUsername() == username) {
+               user->setActive(!user->isActive());
+               cout << "User " << username << " status changed to "
+                   << (user->isActive() ? "Active" : "Inactive") << endl;
+               return;
+           }
+       }
+       cout << "User not found.\n";
+       return;
+   }
+
+
+   // View release log 
+   void viewReleaseLog() const {
+       cout << "\n==== RELEASE EVENT LOG ====\n";
+       if (releaseLog.empty()) {
+           cout << "No release events have occurred.\n";
+           return;
+       }
+
+
+       for (const auto& event : releaseLog) {
+           time_t released = event->getReleaseTimestamp();
+           cout << "Lock Box ID: " << event->getLockBoxId()
+               << " | User: " << event->getUsername()
+               << " | Released At: " << ctime(&released)
+               << " | Amount: $" << fixed << setprecision(2)
+               << event->getReleasedAmount() << endl;
+       }
+   }
+
+
+   // Clear release logs 
+   void clearReleaseLogs() {
+       releaseLog.clear();
+       cout << "Release logs cleared.\n";
+   }
+};
+
+
+// Function to register a new user 
+void registerUser() {
+   string username, password;
+   double initialBalance;
+
+
+   cout << "\n==== USER REGISTRATION ====\n";
+   cout << "Enter username: ";
+   cin >> username;
+
+
+   // Check if username already exists
+   for (const auto& user : users) {
+       if (user->getUsername() == username) {
+           cout << "Username already exists. Please choose another.\n";
+           return;
+       }
+   }
+
+
+   cout << "Enter password: ";
+   cin >> password;
+
+
+   cout << "Enter initial balance: $";
+   cin >> initialBalance;
+
+
+   if (initialBalance < 0) {
+       cout << "Initial balance cannot be negative.\n";
+       return;
+   }
+
+
+   users.push_back(make_shared<User>(username, password, initialBalance));
+
+
+   // Log the transaction
+   TransactionLogger::logTransaction(
+       TransactionLogger::USER_REGISTRATION,
+       username,
+       "User registered",
+       initialBalance
+   );
+
+
+   cout << "User registered successfully!\n";
+}
+
+
+// Function to login a user 
+bool loginUser() {
+   string username, password;
+
+
+   cout << "\n==== USER LOGIN ====\n";
+   cout << "Enter username: ";
+   cin >> username;
+   cout << "Enter password: ";
+   cin >> password;
+
+
+   for (auto& user : users) {
+       if (user->getUsername() == username) {
+           if (!user->isActive()) {
+               cout << "This account is inactive. Please contact the admin.\n";
+               return false;
+           }
+
+
+           if (user->checkPassword(password)) {
+               currentUser = user;
+               isUserLoggedIn = true;
+
+
+               // Log the transaction
+               TransactionLogger::logTransaction(
+                   TransactionLogger::USER_LOGIN,
+                   username,
+                   "User login"
+               );
+
+
+               cout << "Login successful! Welcome, " << username << "!\n";
+               currentUser->checkAndReleaseLockBoxes(); // Check for unlockable boxes on login
+               return true;
+           } else {
+               cout << "Incorrect password.\n";
+               return false;
+           }
+       }
+   }
+
+
+   cout << "User not found.\n";
+   return false;
+}
+
+
+// Function to login admin 
+bool loginAdmin() {
+   string username, password;
+
+
+   cout << "\n==== ADMIN LOGIN ====\n";
+   cout << "Enter admin username: ";
+   cin >> username;
+   cout << "Enter admin password: ";
+   cin >> password;
+
+
+   if (systemAdmin->getUsername() == username && systemAdmin->checkPassword(password)) {
+       isAdminLoggedIn = true;
+
+
+       // Log the transaction
+       TransactionLogger::logTransaction(
+           TransactionLogger::ADMIN_LOGIN,
+           username,
+           "Admin login"
+       );
+
+
+       cout << "Admin login successful!\n";
+       return true;
+   }
+
+
+   cout << "Invalid admin credentials.\n";
+   return false;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
