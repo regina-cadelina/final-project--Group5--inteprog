@@ -1,8 +1,8 @@
 /************************************************************
  * - Cadeliña: Core Classes and Utility Functions
  * - Estrella: LockBox and Release Event System
- * - Alcantara 3: User and Admin Classes
- * - Lique 4: Main Program and User Interface
+ * - Alcantara: User and Admin Classes
+ * - Lique: Main Program and User Interface
  ************************************************************/
 
 #include <iostream>
