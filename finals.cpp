@@ -14,6 +14,13 @@
 #include <fstream> 
 #include <sstream>
 
+// Advanced includes 
+#include <limits>    
+#include <chrono>   
+#include <thread>   
+#include <filesystem> 
+#include <sys/stat.h> 
+
 using namespace std;
 
 // Forward declarations 
@@ -24,6 +31,7 @@ class LockBox;
 class ReleaseEvent;
 class TransactionLogger;
 
+// Global variables for system 
 const string TRANSACTION_LOG_FILE = "transaction_log.txt";
 const string RECEIPTS_DIR = "receipts/";
 
@@ -605,6 +613,271 @@ bool loginAdmin() {
 
    cout << "Invalid admin credentials.\n";
    return false;
+}
+
+// Display user menu
+void displayUserMenu() {
+   cout << "\n==== USER MENU ====\n";
+   cout << "1. Create Lock Box\n";
+   cout << "2. View Active Lock Boxes\n";
+   cout << "3. View Released Lock Boxes\n";
+   cout << "4. View All Lock Boxes\n";
+   cout << "5. Check Balance\n";
+   cout << "6. Logout\n";
+   cout << "Enter your choice: ";
+}
+
+
+// Display admin menu 
+void displayAdminMenu() {
+   cout << "\n==== ADMIN MENU ====\n";
+   cout << "1. View All Users\n";
+   cout << "2. Toggle User Status (Activate/Deactivate)\n";
+   cout << "3. View Release Log\n";
+   cout << "4. Clear Release Logs\n";
+   cout << "5. Logout\n";
+   cout << "Enter your choice: ";
+}
+
+
+// Display main menu 
+void displayMainMenu() {
+   cout << "\n==== TIME-LOCKED SAVINGS SYSTEM ====\n";
+   cout << "1. Register User\n";
+   cout << "2. User Login\n";
+   cout << "3. Admin Login\n";
+   cout << "4. Exit\n";
+   cout << "Enter your choice: ";
+}
+
+
+// Process user menu 
+void processUserMenu() {
+   int choice;
+   displayUserMenu();
+   cin >> choice;
+
+
+   switch (choice) {
+       case 1: {
+           // Create Lock Box
+           double amount;
+           int seconds;
+
+
+           cout << "Enter amount to lock: $";
+           cin >> amount;
+
+
+           cout << "Enter lock duration in seconds: ";
+           cin >> seconds;
+
+
+           if (seconds <= 0) {
+               cout << "Invalid duration. Please enter a positive number of seconds.\n";
+               break;
+           }
+
+
+           time_t now = time(0);
+           time_t unlockTimestamp = now + seconds;
+           currentUser->createLockBox(amount, unlockTimestamp);
+           break;
+       }
+       case 2:
+           // View Active Lock Boxes
+           currentUser->viewLockBoxes(true, false);
+           break;
+       case 3:
+           // View Released Lock Boxes
+           currentUser->viewLockBoxes(false, true);
+           break;
+       case 4:
+           // View All Lock Boxes
+           currentUser->viewLockBoxes(true, true);
+           break;
+       case 5:
+           // Check Balance
+           cout << "Current balance: $" << fixed << setprecision(2)
+               << currentUser->getBalance() << endl;
+           break;
+       case 6:
+           // Logout
+           cout << "Logging out...\n";
+           // Log the transaction
+           TransactionLogger::logTransaction(
+               TransactionLogger::USER_LOGOUT,
+               currentUser->getUsername(),
+               "User logout"
+           );
+           currentUser = nullptr;
+           isUserLoggedIn = false;
+           break;
+       default:
+           cout << "Invalid choice. Please try again.\n";
+           break;
+   }
+}
+
+
+// Save all data to files 
+void saveAllData() {
+   // Save users
+   ofstream userFile(USERS_FILE);
+   for (const auto& user : users) {
+       user->saveToFile(userFile);
+   }
+   userFile.close();
+
+
+   // Save lockboxes
+   ofstream lockBoxFile(LOCKBOXES_FILE);
+   for (const auto& user : users) {
+       for (const auto& box : user->getLockBoxes()) {
+           box->saveToFile(lockBoxFile);
+       }
+   }
+   lockBoxFile.close();
+
+
+   // Save release log
+   ofstream releaseFile(RELEASE_LOG_FILE);
+   for (const auto& event : releaseLog) {
+       event->saveToFile(releaseFile);
+   }
+   releaseFile.close();
+}
+
+
+// Load all data from files
+void loadAllData() {
+   // Load users
+   users.clear();
+   ifstream userFile(USERS_FILE);
+   if (userFile.is_open()) {
+       while (true) {
+           auto user = User::loadFromFile(userFile);
+           if (!user) break;
+           users.push_back(user);
+       }
+       userFile.close();
+   }
+
+
+   // Load lockboxes and assign to users
+   ifstream lockBoxFile(LOCKBOXES_FILE);
+   if (lockBoxFile.is_open()) {
+       while (true) {
+           auto box = LockBox::loadFromFile(lockBoxFile);
+           if (!box) break;
+           // Assign lockbox to the correct user
+           for (auto& user : users) {
+               if (user->getUsername() == box->getOwnerUsername()) {
+                   user->addLockBox(box);
+                   break;
+               }
+           }
+       }
+       lockBoxFile.close();
+   }
+
+
+   // Load release log
+   releaseLog.clear();
+   ifstream releaseFile(RELEASE_LOG_FILE);
+   if (releaseFile.is_open()) {
+       while (true) {
+           auto event = ReleaseEvent::loadFromFile(releaseFile);
+           if (!event) break;
+           releaseLog.push_back(event);
+       }
+       releaseFile.close();
+   }
+}
+
+
+// Main function
+int main() {
+   loadAllData();
+   // Initialize the system admin
+   systemAdmin = make_shared<Admin>("admin", "admin123");
+
+
+   int choice;
+   do {
+       displayMainMenu();
+       cin >> choice;
+
+
+       switch (choice) {
+           case 1:
+               // Register a new user
+               registerUser();
+               break;
+           case 2:
+               // User login
+               if (loginUser()) {
+                   while (isUserLoggedIn) {
+                       processUserMenu();
+                   }
+               }
+               break;
+           case 3:
+               // Admin login
+               if (loginAdmin()) {
+                   int adminChoice;
+                   do {
+                       displayAdminMenu();
+                       cin >> adminChoice;
+
+
+                       switch (adminChoice) {
+                           case 1:
+                               systemAdmin->viewAllUsers();
+                               break;
+                           case 2: {
+                               string username;
+                               cout << "Enter username to toggle status: ";
+                               cin >> username;
+                               systemAdmin->toggleUserStatus(username);
+                               break;
+                           }
+                           case 3:
+                               systemAdmin->viewReleaseLog();
+                               break;
+                           case 4:
+                               systemAdmin->clearReleaseLogs();
+                               break;
+                           case 5:
+                               cout << "Logging out...\n";
+                               // Log the transaction
+                               TransactionLogger::logTransaction(
+                                   TransactionLogger::ADMIN_LOGOUT,
+                                   systemAdmin->getUsername(),
+                                   "Admin logout"
+                               );
+                               isAdminLoggedIn = false;
+                               break;
+                           default:
+                               cout << "Invalid choice. Please try again.\n";
+                               break;
+                       }
+                   } while (isAdminLoggedIn);
+               }
+               break;
+           case 4:
+               cout << "Exiting the system. Goodbye!\n";
+               saveAllData();
+               break;
+           default:
+               cout << "Invalid choice. Please try again.\n";
+               break;
+       }
+   } while (choice != 4);
+
+
+   saveAllData(); // Save everything before exiting
+   return 0;
 }
 
 
